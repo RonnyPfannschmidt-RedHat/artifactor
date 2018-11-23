@@ -1,0 +1,458 @@
+{% extends 'pattern_base.html' %}
+{% set title = 'Test Report' %}
+
+{% block title %}{{title}}{% endblock %}
+
+{% block extrahead %}
+<link rel="stylesheet" href="dist/themes/default/style.min.css" />
+<style>
+.label {
+  display: inline-block;
+}
+.no_bord {
+  border: none;
+  background-color: transparent;
+}
+</style>
+{% endblock %}
+
+{% block nav %}
+  <nav class="navbar navbar-default navbar-pf" role="navigation">
+    <div class="collapse navbar-collapse navbar-collapse-21">
+      <ul class="nav navbar-nav navbar-pf navbar-primary">
+      </ul>
+    </div>
+  </nav>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid" id="content">
+  <div class="row">
+    <div class="col-md-4">
+      <h1>Test Report</h1>
+        {% if version %}<h2>Version: {{version}}</h2>{% endif %}
+        {% if fw_version %}<h2>FW Version: {{fw_version}}</h2>{% endif %}
+    </div>
+    <div class="col-md-8 text-right">Composite Run:
+      <span class="label label-success">{{counts.passed}} Passed &nbsp;<input id="passed-check" type="checkbox" onclick="check_name('passed');"></span>
+      <span class="label label-primary">{{counts.skipped}} Skipped &nbsp;<input id="skipped-check" type="checkbox" onclick="check_name('skipped');"></span>
+      <span class="label label-warning">{{counts.failed}} Failed &nbsp;<input id="failed-check" type="checkbox" onclick="check_name('failed');" checked="checked"></span>
+      <span class="label label-danger">{{counts.error}} Error &nbsp;<input id="error-check" type="checkbox" onclick="check_name('error');" checked="checked"></span>
+      <span class="label label-danger">{{counts.xpassed}} XPassed &nbsp;<input id="xpassed-check" type="checkbox" onclick="check_name('xpassed');" checked="checked"></span>
+      <span class="label label-success">{{counts.xfailed}} XFailed &nbsp;<input id="xfailed-check" type="checkbox" onclick="check_name('xfailed');"></span><br>
+      This Run:
+      <span class="label label-success">{{current_counts.passed}} Passed &nbsp;</span>
+      <span class="label label-primary">{{current_counts.skipped}} Skipped &nbsp;</span>
+      <span class="label label-warning">{{current_counts.failed}} Failed &nbsp;</span>
+      <span class="label label-danger">{{current_counts.error}} Error &nbsp;</span>
+      <span class="label label-danger">{{current_counts.xpassed}} XPassed &nbsp;</span>
+      <span class="label label-success">{{current_counts.xfailed}} XFailed &nbsp;</span>
+    <br>
+    <form>User Filter:
+      <select class="toggle-user">
+        <option value="none" selected="selected">All</option>
+        {% for qac in qa %}<option value="{{qac}}">{{qac}}</option>{% endfor %}
+      </select> &nbsp;
+      Show Blocker Skips<input id="show-blockers" type="checkbox" onclick="check_blockers();">
+      &nbsp;
+      Show Provider Skips<input id="show-providers" type="checkbox" onclick="check_providers();">
+      &nbsp;
+      Show Old Tests<input id="show-old" type="checkbox" onclick="check_old();">
+    </form>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <p></p>
+      <div>
+        <input id="plugins4_q" value="" class="input pull-right" style="display:block; color: #000;" type="text" placeholder="Search">
+      </div>
+    <div id="container">
+      {{ndata}}
+    </div>
+    <br>
+    <div>
+      {% if top10 %}
+        <h3>Top 10 Exceptions</h3>
+        <table class="table table-striped">
+          <tr><td>Exception</td><td>Test</td><td>No Tests</td></tr>
+        {% for t10error in top10 %}
+          <tr>
+            <td>
+              <pre class="no_bord">{{ t10error[0][0]|e }}</pre>
+            </td>
+            <td><a href="#{{t10error[0][1]|e}}" data-toggle="tooltip" title="{{t10error[0][1]}}">{{t10error[0][1]|truncate(50)}}</a>
+            </td>
+            <td>
+              {{ t10error|length }}
+            </td>
+          </tr>
+        {% endfor %}
+        </table>
+      {% endif %}
+    </div>
+    <div>
+      {% if blocker_skip_count > 0 %}
+      <h3>Blocker Skips ({{blocker_skip_count}})</h3>
+      <table class="table table-striped">
+        <tr><td>Test</td><td>Blocker</td></tr>
+        {% for test in tests %}
+          {% if test.skip_blocker %}
+              <tr><td><a href="#{{test.name|e}}" data-toggle="tooltip" title="{{test.name}}">{{test.name|truncate(50)}}</a></td><td>
+                {% for blocker in test.skip_blocker %}
+                <a href="https://bugzilla.redhat.com/show_bug.cgi?id={{blocker}}">{{blocker}}</a><br>
+                {% endfor %}</td>
+          {% endif %}
+        {% endfor %}
+      </table>
+      {% endif %}
+      <br>
+      {% if provider_skip_count > 0 %}
+      <h3>Provider Skips ({{provider_skip_count}})</h3>
+      <table class="table table-striped">
+        <tr><td>Test</td><td>Provider</td></tr>
+        {% for test in tests %}
+          {% if test.skip_provider %}
+              <tr><td><a href="#{{test.name|e}}" data-toggle="tooltip" title="{{test.name}}">{{test.name|truncate(50)}}</a></td><td>{{test.skip_provider}}</td>
+          {% endif %}
+        {% endfor %}
+      </table>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-md-8">
+    <p></p>
+{% for test in tests %}
+    <div data="{{test.outcomes['overall']}}" {% if test.qa_contact %} data-qa="{{test.qa_contact[0][0]}}" {% else %} data-qa="Unknown" {% endif %} {% if test.skip_blocker %} data-blocker="{{test.skip_blocker}}" {% else %} data-blocker="None" {% endif %} {% if test.old %} data-old="{{test.old}}" {% else %} data-old="None" {% endif %} {% if test.skip_provider %} data-provider="{{test.skip_provider}}" {% else %} data-provider="None" {% endif %} class="panel panel-inverse panel-{{test.color}}" data-test="test">
+        <div class="panel-heading">
+            <div class="row">
+                <div class="col-md-10">
+                    <a id="{{test.name|e}}" href="#{{test.name|e}}" data-toggle="tooltip" title="{{test.name|e}}"><strong>{{test.name|truncate(150)}}</strong></a>
+                    <br>
+                    {% if test.in_progress %}
+                        <strong>IN PROGRESS...</strong>
+                    {% else %}
+                        <strong>COMPLETE</strong>
+                    {% endif %}
+                    <br>
+                    <strong>Duration:</strong> <em>{{test.duration}}</em>
+                    {% if test.slaveid %}
+                    <br>
+                    <strong>SLAVE:</strong> <em>{{test.slaveid}}</em>
+                    {% endif %}
+                    {% if test.qa_contact %}
+                    <br>
+                    <strong>OWNER:</strong> <em>
+                      {% for contact in test.qa_contact %}
+                        {{contact[0]}} ({{contact[1]}}),&nbsp;
+                      {% endfor %}
+                      </em>
+                    {% endif %}
+                    {% if test.skip_blocker %}
+                    <br>
+                    <strong>BLOCKERS:</strong> <em>
+                      {% for blocker in test.skip_blocker %}
+                      <a href="https://bugzilla.redhat.com/show_bug.cgi?id={{blocker}}">{{blocker}}</a>,
+                      {% endfor %}
+                      </em>
+                    {% endif %}
+                    {% if test.skip_provider %}
+                    <br>
+                    <strong>PROVDER_FAIL:</strong> <em>
+                      {{ test.skip_provider }}
+                      </em>
+                    {% endif %}
+                    {% if test.composite %}
+                    <br>
+                    <strong>BUILD NUMBER:</strong> <a href="{{test.composite.result_url}}"><em>{{test.composite.best_result.0}}</em></a>
+                    {% endif %}
+                </div>
+                <div class="col-md-2">
+                    Setup
+                    {% if test.outcomes['setup'] %}
+                        {% if test.outcomes['setup'][0] == "passed" %}
+                            <span class="label label-success pull-right">Passed</span>
+                        {% elif test.outcomes['setup'][0] == "failed" %}
+                            <span class="label label-warning pull-right">Failed</span>
+                        {% elif test.outcomes['setup'][0] == "skipped" %}
+                            <span class="label label-danger pull-right">Unknown</span>
+                        {% else %}
+                            <span class="label label-default pull-right">N/A</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="label label-default pull-right">N/A</span>
+                    {% endif %}
+                    <br>
+                    Call
+                    {% if test.outcomes['call'] %}
+                        {% if test.outcomes['call'][0] == "passed" %}
+                            <span class="label label-success pull-right">Passed</span>
+                        {% elif test.outcomes['call'][0] == "failed" %}
+                            <span class="label label-warning pull-right">Failed</span>
+                        {% elif test.outcomes['call'][0] == "skipped" %}
+                            <span class="label label-primary pull-right">Skipped</span>
+                        {% else %}
+                            <span class="label label-default pull-right">N/A</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="label label-default pull-right">N/A</span>
+                    {% endif %}
+                    <br>
+                    Teardown
+                    {% if test.outcomes['teardown'] %}
+                        {% if test.outcomes['teardown'][0] == "passed" %}
+                            <span class="label label-success pull-right">Passed</span>
+                        {% elif test.outcomes['teardown'][0] == "failed" %}
+                            <span class="label label-warning pull-right">Failed</span>
+                        {% elif test.outcomes['teardown'][0] == "skipped" %}
+                            <span class="label label-danger pull-right">Unknown</span>
+                        {% else %}
+                            <span class="label label-default pull-right">N/A</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="label label-default pull-right">N/A</span>
+                    {% endif %}
+                    <br>
+                    Result
+                    {% if test.in_progress %}
+                        <span class="label label-default pull-right">IN PROGRESS</span>
+                    {% else %}
+                        {% if test.outcomes['overall'] == "passed" %}
+                            <span class="label label-success pull-right">PASSED</span>
+                        {% elif test.outcomes['overall'] == "failed" %}
+                            <span class="label label-warning pull-right">FAILED</span>
+                        {% elif test.outcomes['overall'] == "skipped" %}
+                            <span class="label label-primary pull-right">SKIPPED</span>
+                        {% elif test.outcomes['overall'] == "error" %}
+                            <span class="label label-danger pull-right">ERROR</span>
+                        {% elif test.outcomes['overall'] == "xpassed" %}
+                            <span class="label label-danger pull-right">XPASSED</span>
+                        {% elif test.outcomes['overall'] == "xfailed" %}
+                            <span class="label label-success pull-right">XFAILED</span>
+                        {% endif %}
+                    {% endif %}
+                    {% if test.composite %}
+                    <br>
+                    Streak
+                        {% if test.outcomes['overall'] == "passed" %}
+                            <span class="label label-success pull-right">
+                        {% elif test.outcomes['overall'] == "failed" %}
+                            <span class="label label-warning pull-right">
+                        {% elif test.outcomes['overall'] == "skipped" %}
+                            <span class="label label-primary pull-right">
+                        {% elif test.outcomes['overall'] == "error" %}
+                            <span class="label label-danger pull-right">
+                        {% elif test.outcomes['overall'] == "xpassed" %}
+                            <span class="label label-danger pull-right">
+                        {% elif test.outcomes['overall'] == "xfailed" %}
+                            <span class="label label-success pull-right">
+                        {% endif %}
+                        {{test.composite.streak.count}} {{test.composite.streak.latest_result|upper}}</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="panel-body">
+            <p>{{test.file}}</p>
+            {% if test.short_tb %}
+	            <h4>Short Traceback</h4>
+              <pre class="well">{{test.short_tb|e}}</pre>
+            {% endif %}
+            {% if test.urls %}
+              <h4>Captured URLs:</h4>
+              <ul>
+              {% for url in test.urls %}
+                <a href="{{url}}" target="_blank">{{url}}</a>
+              {% endfor %}
+              </ul>
+            {% endif %}
+            <div>
+                {% if test.file_groups %}
+                <h3>Captured files</h3>
+                  <ul>
+                  {% for group, files in test.file_groups %}
+                    <li title="Group {{ group }}">
+                    {% for file in files %}
+                      <a href="{{file.filename}}" class="btn btn-{{file.display_type}}">{% if file.display_glyph %}<span class="glyphicon glyphicon-{{file.display_glyph}}"></span>{% endif %} {{file.description}}</a>
+                    {% endfor %}
+                    </li>
+                  {% endfor %}
+                  </ul>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+{% endfor %}
+  </div>
+</div>
+{% endblock content %}
+
+{% block scripts %}
+<script src="dist/jstree.min.js"></script>
+<script>
+//bigjson = $.parseJSON('{{big_data}}');
+
+//var build_li = function ting(lev, next_lev) {
+//  this_lev = $('<ul></ul>').appendTo(next_lev)
+//    $.each( lev, function( key, value ) {
+//      if (value['name']) {
+//        $('<li>'+value['name']+'</li>').appendTo(this_lev)
+//      } else {
+//       new_lev = $('<li>'+key+'</li>').appendTo(this_lev)
+//        ting(value, new_lev)
+//      }
+//    });
+//}
+
+toggle_state = ['failed', 'error', 'xpassed'];
+toggle_user = "none";
+toggle_blockers = false;
+toggle_providers = false;
+toggle_old = false;
+
+function check_old()
+{
+  if ($('#show-old').is(":checked"))
+  {
+    toggle_old = true;
+  }
+  else
+  {
+    toggle_old = false;
+  }
+  update_display();
+}
+
+function check_blockers()
+{
+  if ($('#show-blockers').is(":checked"))
+  {
+    toggle_blockers = true;
+  }
+  else
+  {
+    toggle_blockers = false;
+  }
+  update_display();
+}
+
+function check_providers()
+{
+  if ($('#show-providers').is(":checked"))
+  {
+    toggle_providers = true;
+  }
+  else
+  {
+    toggle_providers = false;
+  }
+  update_display();
+}
+
+function check_name(name)
+{
+  if ($('#'+name+'-check').is(":checked"))
+  {
+    idx = toggle_state.indexOf(name);
+    if (idx == -1)
+    {
+      toggle_state.push(name);
+    }
+  }
+  else
+  {
+    idx = toggle_state.indexOf(name);
+    if (idx > -1)
+    {
+      toggle_state.splice(idx, 1);
+    }
+  }
+  update_display();
+}
+
+function update_display()
+{
+  $('[data-test="test"]').each(function(item){
+    if (toggle_state.indexOf($(this).attr('data')) == -1)
+    {
+      $(this).hide();
+      return;
+    }
+    if (toggle_user != "none" && $(this).attr('data-qa') != toggle_user)
+    {
+      $(this).hide();
+      return;
+    }
+    if (toggle_blockers == false && $(this).attr('data-blocker') != "None")
+    {
+      $(this).hide();
+      return;
+    }
+    if (toggle_providers == false && $(this).attr('data-provider') != "None")
+    {
+      $(this).hide();
+      return;
+    }
+    if (toggle_old == false && $(this).attr('data-old') != "None")
+    {
+      $(this).hide();
+      return;
+    }
+    $(this).show();
+    return;
+  });
+}
+
+
+$().ready(function(){
+
+$( ".toggle-user" ).change(function() {
+  toggle_user = $(".toggle-user").val();
+  update_display();
+});
+
+$(function() {
+  $('#container').jstree({
+    "plugins" : [ "search" , "sort"],
+    "search" : {
+        "show_only_matches": true,
+        "search_leaves_only": true,
+    }
+  })
+  .bind("ready.jstree", function (event, data) {
+    // you get two params - event & data - check the core docs for a detailed description
+  $("span[name=mod_lev]").parents(".jstree-closed").each(function () {
+    $("#container").jstree("open_node", this, false);
+  });
+  }).bind('select_node.jstree', function(e,data) {
+    window.location.href = data.node.a_attr.href;
+});
+  var to = false;
+  $('#plugins4_q').keyup(function () {
+    if(to) { clearTimeout(to); }
+    to = setTimeout(function () {
+      var v = $('#plugins4_q').val();
+      $('#container').jstree(true).search(v);
+      if (v == ""){
+        $.each(document.getElementsByName('blab'), function(k,v){v.style.display='InlineBlock'})
+      }
+      else {
+        $.each(document.getElementsByName('blab'), function(k,v){v.style.display='None'})
+      }
+    }, 250);
+  });
+});
+
+states = ["passed", "failed", "xpassed", "xfailed", "skipped", "error"];
+toggle_user = $(".toggle-user").val();
+check_providers();
+check_blockers();
+check_old();
+for (state in states){
+  check_name(states[state])
+}
+
+update_display();
+});
+
+</script>
+{% endblock scripts %}
